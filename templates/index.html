@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pathology Transcription App</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Pathology Transcription App</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Upload Audio</h2>
+                <input type="file" id="audioFiles" accept=".wav,.mp3,.ogg,.flac" multiple class="mb-4">
+                <button onclick="uploadFiles()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    <i class="fas fa-upload mr-2"></i>Upload
+                </button>
+                <div id="uploadProgress" class="mt-4"></div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Transcribe</h2>
+                <select id="templateSelect" class="w-full p-2 mb-4 border rounded">
+                    {% for name in templates %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <button onclick="transcribe()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                    <i class="fas fa-language mr-2"></i>Transcribe All
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Manage Templates</h2>
+                <button onclick="openTemplateModal()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded">
+                    <i class="fas fa-cog mr-2"></i>Manage Templates
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Combine Texts</h2>
+                <button onclick="combineTexts()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded">
+                    <i class="fas fa-object-group mr-2"></i>Combine All Texts
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Audio Files</h2>
+                <div class="flex mb-4">
+                    <button onclick="selectAll('audio')" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2">
+                        <i class="fas fa-check-square mr-2"></i>Select All
+                    </button>
+                    <button onclick="deleteSelected('audio')" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                        <i class="fas fa-trash-alt mr-2"></i>Delete Selected
+                    </button>
+                </div>
+                <ul id="audioList" class="space-y-2">
+                    {% for file in audio_files %}
+                    <li class="flex items-center">
+                        <input type="checkbox" id="audio-{{ file }}" name="audio-files" value="{{ file }}" class="mr-2">
+                        <label for="audio-{{ file }}" class="flex-grow">{{ file }}</label>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Text Files</h2>
+                <div class="flex mb-4">
+                    <button onclick="selectAll('text')" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2">
+                        <i class="fas fa-check-square mr-2"></i>Select All
+                    </button>
+                    <button onclick="deleteSelected('text')" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                        <i class="fas fa-trash-alt mr-2"></i>Delete Selected
+                    </button>
+                </div>
+                <ul id="textList" class="space-y-2">
+                    {% for file in text_files %}
+                    <li class="flex items-center">
+                        <input type="checkbox" id="text-{{ file }}" name="text-files" value="{{ file }}" class="mr-2">
+                        <label for="text-{{ file }}" class="flex-grow">{{ file }}</label>
+                        <button onclick="downloadFile('{{ file }}')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 rounded text-sm">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Modal -->
+    <div id="templateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-4">Manage Templates</h2>
+            <input type="text" id="templateName" placeholder="Template Name" class="w-full p-2 mb-4 border rounded">
+            <textarea id="templateContent" placeholder="Template Content" class="w-full p-2 mb-4 border rounded h-32"></textarea>
+            <div class="flex justify-end space-x-2">
+                <button onclick="addTemplate()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Add</button>
+                <button onclick="updateTemplate()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">Update</button>
+                <button onclick="deleteTemplate()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Delete</button>
+                <button onclick="closeTemplateModal()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center">
+        <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
+    <script>
+        function uploadFiles() {
+            showLoading();
+            const files = document.getElementById('audioFiles').files;
+            const totalFiles = files.length;
+            let uploadedFiles = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append('file', files[i]);
+
+                axios.post('/upload', formData, {
+                    onUploadProgress: (progressEvent) => {
+                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        document.getElementById('uploadProgress').innerHTML = `Uploading ${files[i].name}: ${percentCompleted}%`;
+                    }
+                })
+                .then(response => {
+                    uploadedFiles++;
+                    if (uploadedFiles === totalFiles) {
+                        hideLoading();
+                        alert('All files uploaded successfully');
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert(`Error uploading file ${files[i].name}: ${error.response.data.error}`);
+                });
+            }
+        }
+
+        function transcribe() {
+            showLoading();
+            const templateSelect = document.getElementById('templateSelect');
+            const selectedTemplate = templateSelect.value;
+            axios.post('/transcribe', { template: selectedTemplate })
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error transcribing: ' + error.response.data.error);
+                });
+        }
+
+        function openTemplateModal() {
+            document.getElementById('templateModal').classList.remove('hidden');
+            document.getElementById('templateModal').classList.add('flex');
+            const templateSelect = document.getElementById('templateSelect');
+            const selectedTemplate = templateSelect.value;
+            document.getElementById('templateName').value = selectedTemplate;
+            getTemplateContent(selectedTemplate);
+        }
+
+        function getTemplateContent(templateName) {
+            showLoading();
+            axios.post('/get_template_content', { name: templateName })
+                .then(response => {
+                    hideLoading();
+                    document.getElementById('templateContent').value = response.data.content;
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error fetching template content: ' + error.response.data.error);
+                });
+        }
+
+        function closeTemplateModal() {
+            document.getElementById('templateModal').classList.add('hidden');
+            document.getElementById('templateModal').classList.remove('flex');
+        }
+
+        function addTemplate() {
+            showLoading();
+            const name = document.getElementById('templateName').value;
+            const content = document.getElementById('templateContent').value;
+            axios.post('/add_template', { name, content })
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error adding template: ' + error.response.data.error);
+                });
+        }
+
+        function updateTemplate() {
+            showLoading();
+            const name = document.getElementById('templateName').value;
+            const content = document.getElementById('templateContent').value;
+            axios.post('/update_template', { name, content })
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error updating template: ' + error.response.data.error);
+                });
+        }
+
+        function deleteTemplate() {
+            showLoading();
+            const name = document.getElementById('templateName').value;
+            axios.post('/delete_template', { name })
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error deleting template: ' + error.response.data.error);
+                });
+        }
+
+        function combineTexts() {
+            showLoading();
+            axios.post('/combine')
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error combining texts: ' + error.response.data.error);
+                });
+        }
+
+        function selectAll(fileType) {
+            const checkboxes = document.getElementsByName(fileType + '-files');
+            for (let checkbox of checkboxes) {
+                checkbox.checked = true;
+            }
+        }
+
+        function deleteSelected(fileType) {
+            showLoading();
+            const checkboxes = document.getElementsByName(fileType + '-files');
+            const selectedFiles = Array.from(checkboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
+
+            if (selectedFiles.length === 0) {
+                hideLoading();
+                alert('No files selected');
+                return;
+            }
+
+            axios.post(`/delete-multiple/${fileType}`, { files: selectedFiles })
+                .then(response => {
+                    hideLoading();
+                    alert(response.data.message);
+                    location.reload();
+                })
+                .catch(error => {
+                    hideLoading();
+                    alert('Error deleting files: ' + error.response.data.error);
+                });
+        }
+
+        function downloadFile(filename) {
+            window.location.href = `/download/${filename}`;
+        }
+
+        function showLoading() {
+            document.getElementById('loadingSpinner').classList.remove('hidden');
+            document.getElementById('loadingSpinner').classList.add('flex');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').classList.add('hidden');
+            document.getElementById('loadingSpinner').classList.remove('flex');
+        }
+
+        // Add event listener for template select change
+        document.getElementById('templateSelect').addEventListener('change', function() {
+            getTemplateContent(this.value);
+        });
+    </script>
+</body>
+</html>
